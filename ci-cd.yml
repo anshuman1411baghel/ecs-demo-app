@@ -1,0 +1,48 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to ECR
+        env:
+          ECR_REGISTRY: 009612454960.dkr.ecr.ap-south-1.amazonaws.com/ecs-demo-repo
+          ECR_REPOSITORY: ecs-demo-repo
+          IMAGE_TAG: latest
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Deploy to ECS
+        env:
+          CLUSTER_NAME: ecs-demo-cluster
+          SERVICE_NAME: ecs-demo-service
+          TASK_DEFINITION: ecs-demo-task
+          CONTAINER_NAME: ecs-demo-container
+          IMAGE: <009612454960>.dkr.ecr.<ap-south-1>.amazonaws.com/ecs-demo-repo:latest
+        run: |
+          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
